@@ -242,12 +242,51 @@ function computeLayout() {
   return { positions, nodesById, childrenMap };
 }
 
+function collectShelvedBranchIds() {
+  const { childrenMap } = buildGraph();
+  const shelvedBranchIds = new Set();
+  const queue = state.nodes
+    .filter((node) => node.status === "Shelved")
+    .map((node) => node.id);
+
+  while (queue.length > 0) {
+    const nodeId = queue.shift();
+    if (shelvedBranchIds.has(nodeId)) {
+      continue;
+    }
+    shelvedBranchIds.add(nodeId);
+    (childrenMap.get(nodeId) || []).forEach((childId) => {
+      if (!shelvedBranchIds.has(childId)) {
+        queue.push(childId);
+      }
+    });
+  }
+
+  return shelvedBranchIds;
+}
+
+function formatMetaLine({ time, cost, prefix = "", isStrong = false }) {
+  const parts = [];
+  if (time > 0) {
+    parts.push(`${time}h`);
+  }
+  if (cost > 0) {
+    parts.push(`$${cost.toLocaleString()}`);
+  }
+  if (parts.length === 0) {
+    return "";
+  }
+  const className = isStrong ? "node__meta-line node__meta-line--strong" : "node__meta-line";
+  return `<div class="${className}">${prefix}${parts.join(" and ")}</div>`;
+}
+
 function render() {
   mapContent.innerHTML = "";
   linksLayer.innerHTML = "";
 
   const totalsById = computeTotals();
   const { positions } = computeLayout();
+  const shelvedBranchIds = collectShelvedBranchIds();
   const sizeValues = state.nodes.map((node) => {
     const totals = totalsById.get(node.id);
     return totals.cost + totals.time * ESTIMATED_RATE;
@@ -274,6 +313,9 @@ function render() {
     if (node.status === "Shelved") {
       nodeEl.classList.add("node--shelved");
     }
+    if (shelvedBranchIds.has(node.id)) {
+      nodeEl.classList.add("node--dimmed");
+    }
     if (node.assignedTo === "Trey") {
       nodeEl.classList.add("node--trey");
     }
@@ -292,14 +334,22 @@ function render() {
 
     const totalCost = totals.cost;
     const totalTime = totals.time;
+    const estimateLine = formatMetaLine({
+      time: node.estimatedTime,
+      cost: node.estimatedCost,
+      isStrong: true,
+    });
+    const totalLine = formatMetaLine({
+      time: totalTime,
+      cost: totalCost,
+      prefix: "Total: ",
+    });
 
     nodeEl.innerHTML = `
       <div class="node__title">${node.name}</div>
       <div class="node__meta">
-        <span>Estimated cost: $${node.estimatedCost.toLocaleString()}</span>
-        <span>Estimated time: ${node.estimatedTime} hrs</span>
-        <span>Total cost: $${totalCost.toLocaleString()}</span>
-        <span>Total time: ${totalTime} hrs</span>
+        ${estimateLine}
+        ${totalLine}
       </div>
     `;
 
@@ -335,6 +385,9 @@ function render() {
     line.setAttribute("stroke", "#9aa3b2");
     line.setAttribute("stroke-width", "2");
     line.setAttribute("fill", "none");
+    if (shelvedBranchIds.has(link.from) || shelvedBranchIds.has(link.to)) {
+      line.classList.add("link--dimmed");
+    }
     linksLayer.appendChild(line);
 
     const arrow = document.createElementNS(
@@ -345,6 +398,9 @@ function render() {
     arrow.setAttribute("cy", y2);
     arrow.setAttribute("r", "4");
     arrow.setAttribute("fill", "#4b8cff");
+    if (shelvedBranchIds.has(link.from) || shelvedBranchIds.has(link.to)) {
+      arrow.classList.add("link--dimmed");
+    }
     linksLayer.appendChild(arrow);
   });
 
