@@ -79,6 +79,7 @@ body {
   inset: 0;
   pointer-events: none;
   overflow: visible;
+  transform-origin: 0 0;
 }
 
 .map__hint {
