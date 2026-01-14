@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PlannerMap</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="app__header">
+        <div>
+          <h1>PlannerMap</h1>
+          <p>Track goals, decisions, and expenses together.</p>
+        </div>
+        <div class="app__actions">
+          <button id="add-root" class="btn btn--primary">Add Root Node</button>
+          <button id="fit-view" class="btn">Fit to Map</button>
+          <button id="reset-view" class="btn">Reset View</button>
+        </div>
+      </header>
+
+      <main class="app__main">
+        <section class="map" id="map">
+          <div class="map__viewport" id="map-viewport">
+            <svg class="map__links" id="links-layer"></svg>
+            <div class="map__content" id="map-content"></div>
+          </div>
+          <div class="map__hint">Scroll to zoom · Drag to pan · Click a node to edit</div>
+        </section>
+
+        <aside class="sidebar">
+          <div class="sidebar__section">
+            <h2>Selected Node</h2>
+            <form id="node-form">
+              <label>
+                Name
+                <input type="text" name="name" required />
+              </label>
+              <label>
+                Description
+                <textarea name="description" rows="3" placeholder="Optional"></textarea>
+              </label>
+              <label>
+                Estimated Cost ($)
+                <input type="number" name="estimatedCost" min="0" step="1" />
+              </label>
+              <label>
+                Estimated Time (hrs)
+                <input type="number" name="estimatedTime" min="0" step="0.5" />
+              </label>
+              <label>
+                Status
+                <select name="status">
+                  <option>Considering</option>
+                  <option>Shelved</option>
+                  <option>Committed</option>
+                  <option>In Progress</option>
+                  <option>Complete</option>
+                </select>
+              </label>
+              <label>
+                Assigned To
+                <select name="assignedTo">
+                  <option value="">Unassigned</option>
+                  <option>Trey</option>
+                  <option>Sarah</option>
+                </select>
+              </label>
+              <div class="sidebar__buttons">
+                <button type="submit" class="btn btn--primary">Save</button>
+                <button type="button" id="add-child" class="btn">Add Child</button>
+                <button type="button" id="link-node" class="btn">Link Node</button>
+                <button type="button" id="delete-node" class="btn btn--danger">Delete</button>
+              </div>
+            </form>
+          </div>
+          <div class="sidebar__section">
+            <h2>Connections</h2>
+            <ul id="connections-list" class="connections"></ul>
+          </div>
+        </aside>
+      </main>
+    </div>
+
+    <div class="modal" id="link-modal" aria-hidden="true">
+      <div class="modal__content">
+        <h3>Create Dependency Link</h3>
+        <p>Select which node depends on the other.</p>
+        <label>
+          Dependent node
+          <select id="link-dependent"></select>
+        </label>
+        <label>
+          Required node
+          <select id="link-required"></select>
+        </label>
+        <div class="modal__actions">
+          <button id="cancel-link" class="btn">Cancel</button>
+          <button id="confirm-link" class="btn btn--primary">Create Link</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
