@@ -1,0 +1,287 @@
+:root {
+  color-scheme: light;
+  font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+  background: #f6f7fb;
+  color: #1f2430;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.app__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(31, 36, 48, 0.08);
+  z-index: 2;
+}
+
+.app__header h1 {
+  margin: 0 0 4px;
+  font-size: 24px;
+}
+
+.app__header p {
+  margin: 0;
+  color: #5b6476;
+}
+
+.app__actions {
+  display: flex;
+  gap: 12px;
+}
+
+.app__main {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  flex: 1;
+  min-height: 0;
+}
+
+.map {
+  position: relative;
+  overflow: hidden;
+  background: radial-gradient(circle at top, #ffffff, #eef1f9 70%);
+}
+
+.map__viewport {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  cursor: grab;
+}
+
+.map__viewport.is-dragging {
+  cursor: grabbing;
+}
+
+.map__content {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+}
+
+.map__links {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.map__hint {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  background: rgba(255, 255, 255, 0.85);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: #586072;
+  box-shadow: 0 6px 16px rgba(31, 36, 48, 0.08);
+}
+
+.node {
+  position: absolute;
+  border-radius: 16px;
+  padding: 12px 16px;
+  background: #ffffff;
+  box-shadow: 0 16px 32px rgba(31, 36, 48, 0.12);
+  border: 2px solid transparent;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  min-width: 160px;
+}
+
+.node:hover {
+  transform: translate(-50%, -50%) scale(1.02);
+  box-shadow: 0 20px 36px rgba(31, 36, 48, 0.18);
+}
+
+.node--selected {
+  border-color: #4b8cff;
+}
+
+.node--shelved {
+  background: #f2f2f2;
+  color: #7a7f8b;
+}
+
+.node--trey {
+  border-color: #ff9b2f;
+  background: #fff5e9;
+}
+
+.node--sarah {
+  border-color: #2eb67d;
+  background: #e7f7ef;
+}
+
+.node__title {
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+
+.node__meta {
+  font-size: 12px;
+  color: #5d6472;
+}
+
+.node__meta span {
+  display: block;
+  margin-top: 2px;
+}
+
+.sidebar {
+  background: #ffffff;
+  border-left: 1px solid #e1e5ef;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.sidebar__section {
+  margin-bottom: 24px;
+}
+
+.sidebar h2 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+
+label {
+  display: block;
+  font-size: 12px;
+  color: #5e6677;
+  margin-bottom: 12px;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid #d7dce7;
+  font-family: inherit;
+}
+
+textarea {
+  resize: vertical;
+}
+
+.btn {
+  border: 1px solid #d7dce7;
+  background: #ffffff;
+  padding: 8px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.btn--primary {
+  background: #4b8cff;
+  border-color: #4b8cff;
+  color: #ffffff;
+}
+
+.btn--danger {
+  border-color: #ff5d5d;
+  color: #ff5d5d;
+  background: #fff5f5;
+}
+
+.sidebar__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.connections {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.connections li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #f6f7fb;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.connections button {
+  border: none;
+  background: none;
+  color: #ff5d5d;
+  cursor: pointer;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(20, 24, 36, 0.3);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  z-index: 10;
+}
+
+.modal.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal__content {
+  background: #ffffff;
+  padding: 20px;
+  border-radius: 16px;
+  width: 320px;
+  box-shadow: 0 20px 40px rgba(31, 36, 48, 0.2);
+}
+
+.modal__content h3 {
+  margin: 0 0 8px;
+}
+
+.modal__content p {
+  margin: 0 0 16px;
+  color: #5e6677;
+  font-size: 13px;
+}
+
+.modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+@media (max-width: 1024px) {
+  .app__main {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    border-left: none;
+    border-top: 1px solid #e1e5ef;
+  }
+}
