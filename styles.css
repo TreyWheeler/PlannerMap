@@ -119,6 +119,10 @@ body {
   color: #7a7f8b;
 }
 
+.node--dimmed {
+  opacity: 0.55;
+}
+
 .node--trey {
   border-color: #ff9b2f;
   background: #fff5e9;
@@ -139,9 +143,17 @@ body {
   color: #5d6472;
 }
 
-.node__meta span {
-  display: block;
+.node__meta-line {
   margin-top: 2px;
+}
+
+.node__meta-line--strong {
+  font-weight: 600;
+  color: #1f2430;
+}
+
+.link--dimmed {
+  opacity: 0.25;
 }
 
 .sidebar {
