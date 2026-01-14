@@ -30,6 +30,10 @@ let viewState = {
 let isDragging = false;
 let dragStart = { x: 0, y: 0 };
 let dragOrigin = { x: 0, y: 0 };
+let layoutCache = {
+  positions: new Map(),
+  velocities: new Map(),
+};
 
 const STATUS_OPTIONS = [
   "Considering",
@@ -148,98 +152,131 @@ function computeTotals() {
   return totalsById;
 }
 
-function computeLayout() {
-  const { nodesById, childrenMap, incomingMap } = buildGraph();
-  const primaryParent = new Map();
-
-  state.nodes.forEach((node) => {
-    const incoming = incomingMap.get(node.id) || [];
-    primaryParent.set(node.id, incoming[0] || null);
-  });
-
-  const primaryChildren = new Map();
-  state.nodes.forEach((node) => {
-    const parentId = primaryParent.get(node.id);
-    if (parentId) {
-      if (!primaryChildren.has(parentId)) {
-        primaryChildren.set(parentId, []);
-      }
-      primaryChildren.get(parentId).push(node.id);
-    }
-  });
-
-  const roots = state.nodes
-    .map((node) => node.id)
-    .filter((id) => !primaryParent.get(id));
-
-  const subtreeSize = new Map();
-
-  function countLeaves(nodeId, trail = new Set()) {
-    if (subtreeSize.has(nodeId)) {
-      return subtreeSize.get(nodeId);
-    }
-    if (trail.has(nodeId)) {
-      return 1;
-    }
-    const nextTrail = new Set(trail);
-    nextTrail.add(nodeId);
-    const children = primaryChildren.get(nodeId) || [];
-    if (children.length === 0) {
-      subtreeSize.set(nodeId, 1);
-      return 1;
-    }
-    const total = children.reduce(
-      (sum, childId) => sum + countLeaves(childId, nextTrail),
-      0
-    );
-    subtreeSize.set(nodeId, total);
-    return total;
-  }
-
-  roots.forEach((rootId) => countLeaves(rootId));
-
+function computeLayout(nodeSizes) {
+  const { nodesById } = buildGraph();
   const positions = new Map();
-  const levelSpacing = 280;
-  const leafSpacing = 220;
+  const velocities = new Map();
+  const viewportRect = mapViewport.getBoundingClientRect();
+  const centerX = viewportRect.width / 2;
+  const centerY = viewportRect.height / 2;
+  const nodeCount = Math.max(state.nodes.length, 1);
 
-  function layoutNode(nodeId, depth, yStart, trail = new Set()) {
-    if (trail.has(nodeId)) {
-      return;
+  const existingIds = new Set(state.nodes.map((node) => node.id));
+  layoutCache.positions.forEach((_, id) => {
+    if (!existingIds.has(id)) {
+      layoutCache.positions.delete(id);
+      layoutCache.velocities.delete(id);
     }
-    const nextTrail = new Set(trail);
-    nextTrail.add(nodeId);
-    const size = subtreeSize.get(nodeId) || 1;
-    const yCenter = yStart + (size * leafSpacing) / 2;
+  });
 
-    positions.set(nodeId, {
-      x: depth * levelSpacing,
-      y: yCenter,
+  state.nodes.forEach((node, index) => {
+    let position = layoutCache.positions.get(node.id);
+    if (!position) {
+      const angle = (index / nodeCount) * Math.PI * 2;
+      const radius = 180 + (index % 5) * 20;
+      position = {
+        x: centerX + Math.cos(angle) * radius,
+        y: centerY + Math.sin(angle) * radius,
+      };
+    }
+    const velocity = layoutCache.velocities.get(node.id) || { x: 0, y: 0 };
+    positions.set(node.id, { ...position });
+    velocities.set(node.id, { ...velocity });
+  });
+
+  const config = {
+    iterations: 80,
+    repulsionStrength: 48000,
+    springStrength: 0.01,
+    centerStrength: 0.002,
+    damping: 0.86,
+    maxVelocity: 12,
+    linkDistance: 220,
+  };
+
+  const nodeArray = state.nodes.map((node) => ({
+    id: node.id,
+    radius: nodeSizes.get(node.id)?.radius || 80,
+  }));
+
+  for (let i = 0; i < config.iterations; i += 1) {
+    const forces = new Map();
+    nodeArray.forEach((node) => {
+      const position = positions.get(node.id);
+      const centerForceX = (centerX - position.x) * config.centerStrength;
+      const centerForceY = (centerY - position.y) * config.centerStrength;
+      forces.set(node.id, { x: centerForceX, y: centerForceY });
     });
 
-    let cursor = yStart;
-    const children = primaryChildren.get(nodeId) || [];
-    children.forEach((childId) => {
-      const childSize = subtreeSize.get(childId) || 1;
-      layoutNode(childId, depth + 1, cursor, nextTrail);
-      cursor += childSize * leafSpacing;
+    for (let a = 0; a < nodeArray.length; a += 1) {
+      const nodeA = nodeArray[a];
+      const posA = positions.get(nodeA.id);
+      for (let b = a + 1; b < nodeArray.length; b += 1) {
+        const nodeB = nodeArray[b];
+        const posB = positions.get(nodeB.id);
+        const dx = posB.x - posA.x;
+        const dy = posB.y - posA.y;
+        const distance = Math.hypot(dx, dy) || 1;
+        const minDistance = nodeA.radius + nodeB.radius + 20;
+        const overlap = Math.max(0, minDistance - distance);
+        const repulsionForce =
+          config.repulsionStrength / (distance * distance) + overlap * 1.5;
+        const forceX = (dx / distance) * repulsionForce;
+        const forceY = (dy / distance) * repulsionForce;
+        const forceA = forces.get(nodeA.id);
+        const forceB = forces.get(nodeB.id);
+        forceA.x -= forceX;
+        forceA.y -= forceY;
+        forceB.x += forceX;
+        forceB.y += forceY;
+      }
+    }
+
+    state.links.forEach((link) => {
+      const source = positions.get(link.from);
+      const target = positions.get(link.to);
+      if (!source || !target) {
+        return;
+      }
+      const sourceRadius = nodeSizes.get(link.from)?.radius || 80;
+      const targetRadius = nodeSizes.get(link.to)?.radius || 80;
+      const dx = target.x - source.x;
+      const dy = target.y - source.y;
+      const distance = Math.hypot(dx, dy) || 1;
+      const desired = config.linkDistance + sourceRadius + targetRadius;
+      const stretch = distance - desired;
+      const springForce = stretch * config.springStrength;
+      const forceX = (dx / distance) * springForce;
+      const forceY = (dy / distance) * springForce;
+      const sourceForce = forces.get(link.from);
+      const targetForce = forces.get(link.to);
+      sourceForce.x += forceX;
+      sourceForce.y += forceY;
+      targetForce.x -= forceX;
+      targetForce.y -= forceY;
+    });
+
+    nodeArray.forEach((node) => {
+      const position = positions.get(node.id);
+      const velocity = velocities.get(node.id);
+      const force = forces.get(node.id);
+      velocity.x = (velocity.x + force.x) * config.damping;
+      velocity.y = (velocity.y + force.y) * config.damping;
+      velocity.x = Math.max(
+        -config.maxVelocity,
+        Math.min(config.maxVelocity, velocity.x)
+      );
+      velocity.y = Math.max(
+        -config.maxVelocity,
+        Math.min(config.maxVelocity, velocity.y)
+      );
+      position.x += velocity.x;
+      position.y += velocity.y;
     });
   }
 
-  let rootCursor = 100;
-  roots.forEach((rootId) => {
-    const size = subtreeSize.get(rootId) || 1;
-    layoutNode(rootId, 0, rootCursor);
-    rootCursor += size * leafSpacing + 120;
-  });
-
-  state.nodes.forEach((node) => {
-    if (!positions.has(node.id)) {
-      positions.set(node.id, { x: 0, y: rootCursor });
-      rootCursor += 200;
-    }
-  });
-
-  return { positions, nodesById, childrenMap };
+  layoutCache = { positions, velocities };
+  return { positions, nodesById };
 }
 
 function collectShelvedBranchIds() {
@@ -285,7 +322,6 @@ function render() {
   linksLayer.innerHTML = "";
 
   const totalsById = computeTotals();
-  const { positions } = computeLayout();
   const shelvedBranchIds = collectShelvedBranchIds();
   const sizeValues = state.nodes.map((node) => {
     const totals = totalsById.get(node.id);
@@ -294,11 +330,9 @@ function render() {
   const minSize = Math.min(...sizeValues, 1);
   const maxSize = Math.max(...sizeValues, minSize + 1);
 
-  const nodeElements = new Map();
-
+  const nodeSizes = new Map();
   state.nodes.forEach((node) => {
     const totals = totalsById.get(node.id) || { cost: 0, time: 0 };
-    const position = positions.get(node.id) || { x: 0, y: 0 };
     const totalEstimate = totals.cost + totals.time * ESTIMATED_RATE;
     const scaleValue = (totalEstimate - minSize) / (maxSize - minSize || 1);
     const width =
@@ -307,6 +341,20 @@ function render() {
     const height =
       NODE_HEIGHT_RANGE[0] +
       (NODE_HEIGHT_RANGE[1] - NODE_HEIGHT_RANGE[0]) * scaleValue;
+    nodeSizes.set(node.id, {
+      width,
+      height,
+      radius: Math.max(width, height) / 2,
+    });
+  });
+
+  const { positions } = computeLayout(nodeSizes);
+  const nodeElements = new Map();
+
+  state.nodes.forEach((node) => {
+    const totals = totalsById.get(node.id) || { cost: 0, time: 0 };
+    const position = positions.get(node.id) || { x: 0, y: 0 };
+    const { width, height } = nodeSizes.get(node.id);
 
     const nodeEl = document.createElement("div");
     nodeEl.className = "node";
