@@ -1,6 +1,7 @@
 const STORAGE_KEY = "plannerMapDataV1";
 const NODE_WIDTH_RANGE = [170, 240];
 const NODE_HEIGHT_RANGE = [120, 190];
+const NODE_RADIUS_RANGE = [NODE_HEIGHT_RANGE[0] / 2, NODE_WIDTH_RANGE[1] / 2];
 const ESTIMATED_RATE = 100;
 
 const mapViewport = document.getElementById("map-viewport");
@@ -301,12 +302,10 @@ function render() {
     const position = positions.get(node.id) || { x: 0, y: 0 };
     const totalEstimate = totals.cost + totals.time * ESTIMATED_RATE;
     const scaleValue = (totalEstimate - minSize) / (maxSize - minSize || 1);
-    const width =
-      NODE_WIDTH_RANGE[0] +
-      (NODE_WIDTH_RANGE[1] - NODE_WIDTH_RANGE[0]) * scaleValue;
-    const height =
-      NODE_HEIGHT_RANGE[0] +
-      (NODE_HEIGHT_RANGE[1] - NODE_HEIGHT_RANGE[0]) * scaleValue;
+    const radius =
+      NODE_RADIUS_RANGE[0] +
+      (NODE_RADIUS_RANGE[1] - NODE_RADIUS_RANGE[0]) * scaleValue;
+    const diameter = radius * 2;
 
     const nodeEl = document.createElement("div");
     nodeEl.className = "node";
@@ -328,8 +327,8 @@ function render() {
     if (node.id === selectedNodeId) {
       nodeEl.classList.add("node--selected");
     }
-    nodeEl.style.width = `${width}px`;
-    nodeEl.style.height = `${height}px`;
+    nodeEl.style.width = `${diameter}px`;
+    nodeEl.style.height = `${diameter}px`;
     nodeEl.style.left = `${position.x}px`;
     nodeEl.style.top = `${position.y}px`;
     nodeEl.style.transform = "translate(-50%, -50%)";
@@ -364,7 +363,12 @@ function render() {
     });
 
     mapContent.appendChild(nodeEl);
-    nodeElements.set(node.id, { element: nodeEl, position, width, height });
+    nodeElements.set(node.id, {
+      element: nodeEl,
+      position,
+      width: diameter,
+      height: diameter,
+    });
   });
 
   state.links.forEach((link) => {
