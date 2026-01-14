@@ -322,6 +322,9 @@ function render() {
     if (node.assignedTo === "Sarah") {
       nodeEl.classList.add("node--sarah");
     }
+    if (node.assignedTo === "Both") {
+      nodeEl.classList.add("node--both");
+    }
     if (node.id === selectedNodeId) {
       nodeEl.classList.add("node--selected");
     }
