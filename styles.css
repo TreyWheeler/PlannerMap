@@ -133,6 +133,11 @@ body {
   background: #e7f7ef;
 }
 
+.node--both {
+  border-color: #b49be3;
+  background: lavender;
+}
+
 .node__title {
   font-weight: 600;
   margin: 0 0 6px;
