@@ -282,6 +282,27 @@ function computeLayout(nodeSizes, steps = 1) {
   return positions;
 }
 
+function buildLinkPath(x1, y1, x2, y2) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const distance = Math.hypot(dx, dy);
+  const curveThreshold = 140;
+  let path = `M ${x1} ${y1} L ${x2} ${y2}`;
+
+  if (distance > curveThreshold) {
+    const midX = (x1 + x2) / 2;
+    const midY = (y1 + y2) / 2;
+    const curveIntensity = Math.min(distance / 3, 140);
+    const normX = distance === 0 ? 0 : -dy / distance;
+    const normY = distance === 0 ? 0 : dx / distance;
+    const controlX = midX + normX * curveIntensity;
+    const controlY = midY + normY * curveIntensity;
+    path = `M ${x1} ${y1} Q ${controlX} ${controlY} ${x2} ${y2}`;
+  }
+
+  return path;
+}
+
 function updateLinkPositions(nodeElements, linkElements) {
   linkElements.forEach((link) => {
     const fromNode = nodeElements.get(link.from);
@@ -289,12 +310,11 @@ function updateLinkPositions(nodeElements, linkElements) {
     if (!fromNode || !toNode) {
       return;
     }
-    const x1 = fromNode.position.x + fromNode.width / 2;
+    const x1 = fromNode.position.x;
     const y1 = fromNode.position.y;
-    const x2 = toNode.position.x - toNode.width / 2;
+    const x2 = toNode.position.x;
     const y2 = toNode.position.y;
-    const midX = (x1 + x2) / 2;
-    const path = `M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`;
+    const path = buildLinkPath(x1, y1, x2, y2);
 
     link.path.setAttribute("d", path);
     link.arrow.setAttribute("cx", x2);
@@ -471,12 +491,11 @@ function render() {
       "http://www.w3.org/2000/svg",
       "path"
     );
-    const x1 = fromNode.position.x + fromNode.width / 2;
+    const x1 = fromNode.position.x;
     const y1 = fromNode.position.y;
-    const x2 = toNode.position.x - toNode.width / 2;
+    const x2 = toNode.position.x;
     const y2 = toNode.position.y;
-    const midX = (x1 + x2) / 2;
-    const path = `M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`;
+    const path = buildLinkPath(x1, y1, x2, y2);
 
     line.setAttribute("d", path);
     line.setAttribute("stroke", "#9aa3b2");
