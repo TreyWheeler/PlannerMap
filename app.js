@@ -33,6 +33,7 @@ let dragOrigin = { x: 0, y: 0 };
 let layoutCache = {
   positions: new Map(),
   velocities: new Map(),
+  animationFrameId: null,
 };
 
 const STATUS_OPTIONS = [
@@ -152,10 +153,9 @@ function computeTotals() {
   return totalsById;
 }
 
-function computeLayout(nodeSizes) {
-  const { nodesById } = buildGraph();
-  const positions = new Map();
-  const velocities = new Map();
+function computeLayout(nodeSizes, steps = 1) {
+  const positions = layoutCache.positions;
+  const velocities = layoutCache.velocities;
   const viewportRect = mapViewport.getBoundingClientRect();
   const centerX = viewportRect.width / 2;
   const centerY = viewportRect.height / 2;
@@ -170,7 +170,7 @@ function computeLayout(nodeSizes) {
   });
 
   state.nodes.forEach((node, index) => {
-    let position = layoutCache.positions.get(node.id);
+    let position = positions.get(node.id);
     if (!position) {
       const angle = (index / nodeCount) * Math.PI * 2;
       const radius = 180 + (index % 5) * 20;
@@ -178,14 +178,14 @@ function computeLayout(nodeSizes) {
         x: centerX + Math.cos(angle) * radius,
         y: centerY + Math.sin(angle) * radius,
       };
+      positions.set(node.id, position);
     }
-    const velocity = layoutCache.velocities.get(node.id) || { x: 0, y: 0 };
-    positions.set(node.id, { ...position });
-    velocities.set(node.id, { ...velocity });
+    if (!velocities.has(node.id)) {
+      velocities.set(node.id, { x: 0, y: 0 });
+    }
   });
 
   const config = {
-    iterations: 80,
     repulsionStrength: 48000,
     springStrength: 0.01,
     centerStrength: 0.002,
@@ -199,7 +199,7 @@ function computeLayout(nodeSizes) {
     radius: nodeSizes.get(node.id)?.radius || 80,
   }));
 
-  for (let i = 0; i < config.iterations; i += 1) {
+  for (let i = 0; i < steps; i += 1) {
     const forces = new Map();
     nodeArray.forEach((node) => {
       const position = positions.get(node.id);
@@ -275,8 +275,50 @@ function computeLayout(nodeSizes) {
     });
   }
 
-  layoutCache = { positions, velocities };
-  return { positions, nodesById };
+  return positions;
+}
+
+function updateLinkPositions(nodeElements, linkElements) {
+  linkElements.forEach((link) => {
+    const fromNode = nodeElements.get(link.from);
+    const toNode = nodeElements.get(link.to);
+    if (!fromNode || !toNode) {
+      return;
+    }
+    const x1 = fromNode.position.x + fromNode.width / 2;
+    const y1 = fromNode.position.y;
+    const x2 = toNode.position.x - toNode.width / 2;
+    const y2 = toNode.position.y;
+    const midX = (x1 + x2) / 2;
+    const path = `M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`;
+
+    link.path.setAttribute("d", path);
+    link.arrow.setAttribute("cx", x2);
+    link.arrow.setAttribute("cy", y2);
+  });
+}
+
+function startLayoutAnimation(nodeSizes, nodeElements, linkElements) {
+  if (layoutCache.animationFrameId) {
+    cancelAnimationFrame(layoutCache.animationFrameId);
+  }
+
+  const tick = () => {
+    const positions = computeLayout(nodeSizes, 2);
+    nodeElements.forEach((node, id) => {
+      const position = positions.get(id);
+      if (!position) {
+        return;
+      }
+      node.position = position;
+      node.element.style.left = `${position.x}px`;
+      node.element.style.top = `${position.y}px`;
+    });
+    updateLinkPositions(nodeElements, linkElements);
+    layoutCache.animationFrameId = requestAnimationFrame(tick);
+  };
+
+  tick();
 }
 
 function collectShelvedBranchIds() {
@@ -348,8 +390,9 @@ function render() {
     });
   });
 
-  const { positions } = computeLayout(nodeSizes);
+  const positions = computeLayout(nodeSizes, 1);
   const nodeElements = new Map();
+  const linkElements = [];
 
   state.nodes.forEach((node) => {
     const totals = totalsById.get(node.id) || { cost: 0, time: 0 };
@@ -453,11 +496,19 @@ function render() {
       arrow.classList.add("link--dimmed");
     }
     linksLayer.appendChild(arrow);
+
+    linkElements.push({
+      from: link.from,
+      to: link.to,
+      path: line,
+      arrow,
+    });
   });
 
   updateForm();
   updateConnections();
   updateLinksBounds();
+  startLayoutAnimation(nodeSizes, nodeElements, linkElements);
 }
 
 function updateLinksBounds() {
