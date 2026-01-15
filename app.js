@@ -393,19 +393,17 @@ function render() {
     const totals = totalsById.get(node.id);
     return totals.cost + totals.time * ESTIMATED_RATE;
   });
-  const positiveSizes = sizeValues.filter((value) => value > 0);
-  const minSize = positiveSizes.length > 0 ? Math.min(...positiveSizes) : 1;
-  const baseRadius = NODE_RADIUS_RANGE[0];
-  const baseArea = Math.PI * baseRadius * baseRadius;
+  const minSize = Math.min(...sizeValues, 1);
+  const maxSize = Math.max(...sizeValues, minSize + 1);
 
   const nodeSizes = new Map();
   state.nodes.forEach((node) => {
     const totals = totalsById.get(node.id) || { cost: 0, time: 0 };
     const totalEstimate = totals.cost + totals.time * ESTIMATED_RATE;
+    const scaleValue = (totalEstimate - minSize) / (maxSize - minSize || 1);
     const radius =
-      totalEstimate > 0
-        ? Math.sqrt(((baseArea * totalEstimate) / minSize) / Math.PI)
-        : baseRadius;
+      NODE_RADIUS_RANGE[0] +
+      (NODE_RADIUS_RANGE[1] - NODE_RADIUS_RANGE[0]) * scaleValue;
     const width = radius * 2;
     const height = radius * 2;
     nodeSizes.set(node.id, {
