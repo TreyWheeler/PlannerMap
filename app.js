@@ -1,6 +1,10 @@
 const STORAGE_KEY = "plannerMapDataV1";
 const NODE_WIDTH_RANGE = [170, 240];
 const NODE_HEIGHT_RANGE = [120, 190];
+const NODE_RADIUS_RANGE = [
+  Math.min(NODE_WIDTH_RANGE[0], NODE_HEIGHT_RANGE[0]) / 2,
+  Math.max(NODE_WIDTH_RANGE[1], NODE_HEIGHT_RANGE[1]) / 2,
+];
 const ESTIMATED_RATE = 100;
 
 const mapViewport = document.getElementById("map-viewport");
@@ -377,16 +381,15 @@ function render() {
     const totals = totalsById.get(node.id) || { cost: 0, time: 0 };
     const totalEstimate = totals.cost + totals.time * ESTIMATED_RATE;
     const scaleValue = (totalEstimate - minSize) / (maxSize - minSize || 1);
-    const width =
-      NODE_WIDTH_RANGE[0] +
-      (NODE_WIDTH_RANGE[1] - NODE_WIDTH_RANGE[0]) * scaleValue;
-    const height =
-      NODE_HEIGHT_RANGE[0] +
-      (NODE_HEIGHT_RANGE[1] - NODE_HEIGHT_RANGE[0]) * scaleValue;
+    const radius =
+      NODE_RADIUS_RANGE[0] +
+      (NODE_RADIUS_RANGE[1] - NODE_RADIUS_RANGE[0]) * scaleValue;
+    const width = radius * 2;
+    const height = radius * 2;
     nodeSizes.set(node.id, {
       width,
       height,
-      radius: Math.max(width, height) / 2,
+      radius,
     });
   });
 
