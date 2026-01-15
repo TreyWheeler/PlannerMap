@@ -13,6 +13,32 @@ const NODE_RADIUS_RANGE = [
   Math.max(NODE_WIDTH_RANGE[1], NODE_HEIGHT_RANGE[1]) / 2,
 ];
 const ESTIMATED_RATE = 100;
+const BASE_LAYOUT_CONFIG = {
+  repulsionStrength: 48000,
+  springStrength: 0.01,
+  centerStrength: 0.002,
+  damping: 0.86,
+  maxVelocity: 12,
+  linkDistance: 220,
+};
+
+function getLayoutConfig() {
+  const sizeScale = Math.max(1, NODE_SIZE_DIFFERENTIAL_MULTIPLIER);
+  const spacingScale = Math.sqrt(sizeScale);
+  const forceScale = 1 / spacingScale;
+
+  return {
+    repulsionStrength: BASE_LAYOUT_CONFIG.repulsionStrength * forceScale,
+    springStrength: BASE_LAYOUT_CONFIG.springStrength * forceScale,
+    centerStrength: BASE_LAYOUT_CONFIG.centerStrength * forceScale,
+    damping: Math.min(
+      0.95,
+      BASE_LAYOUT_CONFIG.damping + (sizeScale - 1) * 0.02
+    ),
+    maxVelocity: BASE_LAYOUT_CONFIG.maxVelocity * spacingScale,
+    linkDistance: BASE_LAYOUT_CONFIG.linkDistance * spacingScale,
+  };
+}
 
 const mapViewport = document.getElementById("map-viewport");
 const mapContent = document.getElementById("map-content");
@@ -196,14 +222,7 @@ function computeLayout(nodeSizes, steps = 1) {
     }
   });
 
-  const config = {
-    repulsionStrength: 48000,
-    springStrength: 0.01,
-    centerStrength: 0.002,
-    damping: 0.86,
-    maxVelocity: 12,
-    linkDistance: 220,
-  };
+  const config = getLayoutConfig();
 
   const nodeArray = state.nodes.map((node) => ({
     id: node.id,
