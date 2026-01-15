@@ -5,6 +5,8 @@ const NODE_RADIUS_RANGE = [
   Math.min(NODE_WIDTH_RANGE[0], NODE_HEIGHT_RANGE[0]) / 2,
   Math.max(NODE_WIDTH_RANGE[1], NODE_HEIGHT_RANGE[1]) / 2,
 ];
+const MAX_SIZE_DIFFERENTIAL = 5;
+const MAX_NODE_RADIUS = NODE_RADIUS_RANGE[1] * MAX_SIZE_DIFFERENTIAL;
 const ESTIMATED_RATE = 100;
 
 const mapViewport = document.getElementById("map-viewport");
@@ -404,7 +406,10 @@ function render() {
     const totalEstimate = totals.cost + totals.time * ESTIMATED_RATE;
     const radius =
       totalEstimate > 0
-        ? Math.sqrt(((baseArea * totalEstimate) / minSize) / Math.PI)
+        ? Math.min(
+            Math.sqrt(((baseArea * totalEstimate) / minSize) / Math.PI),
+            MAX_NODE_RADIUS
+          )
         : baseRadius;
     const width = radius * 2;
     const height = radius * 2;
