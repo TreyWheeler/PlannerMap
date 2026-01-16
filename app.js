@@ -21,6 +21,8 @@ const BASE_LAYOUT_CONFIG = {
   maxVelocity: 12,
   linkDistance: 220,
 };
+const LAYOUT_SETTLE_VELOCITY = 0.08;
+const LAYOUT_SETTLE_FRAMES = 20;
 
 function getLayoutConfig() {
   const sizeScale = Math.max(1, NODE_SIZE_DIFFERENTIAL_MULTIPLIER);
@@ -353,8 +355,11 @@ function startLayoutAnimation(nodeSizes, nodeElements, linkElements) {
     cancelAnimationFrame(layoutCache.animationFrameId);
   }
 
+  let settledFrames = 0;
+
   const tick = () => {
     const positions = computeLayout(nodeSizes, 2);
+    let maxVelocity = 0;
     nodeElements.forEach((node, id) => {
       const position = positions.get(id);
       if (!position) {
@@ -364,7 +369,22 @@ function startLayoutAnimation(nodeSizes, nodeElements, linkElements) {
       node.element.style.left = `${position.x}px`;
       node.element.style.top = `${position.y}px`;
     });
+    layoutCache.velocities.forEach((velocity) => {
+      const speed = Math.hypot(velocity.x, velocity.y);
+      if (speed > maxVelocity) {
+        maxVelocity = speed;
+      }
+    });
     updateLinkPositions(nodeElements, linkElements);
+    if (maxVelocity < LAYOUT_SETTLE_VELOCITY) {
+      settledFrames += 1;
+      if (settledFrames >= LAYOUT_SETTLE_FRAMES) {
+        layoutCache.animationFrameId = null;
+        return;
+      }
+    } else {
+      settledFrames = 0;
+    }
     layoutCache.animationFrameId = requestAnimationFrame(tick);
   };
 
