@@ -1085,20 +1085,38 @@ mapViewport.addEventListener("mouseleave", () => {
   }
 });
 
-mapViewport.addEventListener("wheel", (event) => {
-  event.preventDefault();
-  const delta = -event.deltaY * 0.0015;
-  const nextScale = Math.min(Math.max(viewState.scale + delta, 0.3), 2);
-  const rect = mapViewport.getBoundingClientRect();
-  const offsetX = event.clientX - rect.left;
-  const offsetY = event.clientY - rect.top;
-  const scaleRatio = nextScale / viewState.scale;
+function getWheelScale(event) {
+  let delta = event.deltaY;
+  if (event.deltaMode === 1) {
+    delta *= 16;
+  } else if (event.deltaMode === 2) {
+    delta *= window.innerHeight;
+  }
+  const zoomIntensity = event.ctrlKey ? 0.003 : 0.0015;
+  return Math.exp(-delta * zoomIntensity);
+}
 
-  viewState.x = offsetX - scaleRatio * (offsetX - viewState.x);
-  viewState.y = offsetY - scaleRatio * (offsetY - viewState.y);
-  viewState.scale = nextScale;
-  applyTransform();
-});
+mapViewport.addEventListener(
+  "wheel",
+  (event) => {
+    event.preventDefault();
+    const scaleFactor = getWheelScale(event);
+    const nextScale = Math.min(Math.max(viewState.scale * scaleFactor, 0.3), 2);
+    if (nextScale === viewState.scale) {
+      return;
+    }
+    const rect = mapViewport.getBoundingClientRect();
+    const offsetX = event.clientX - rect.left;
+    const offsetY = event.clientY - rect.top;
+    const scaleRatio = nextScale / viewState.scale;
+
+    viewState.x = offsetX - scaleRatio * (offsetX - viewState.x);
+    viewState.y = offsetY - scaleRatio * (offsetY - viewState.y);
+    viewState.scale = nextScale;
+    applyTransform();
+  },
+  { passive: false }
+);
 
 nodeForm.addEventListener("submit", (event) => {
   event.preventDefault();
