@@ -373,6 +373,35 @@ function formatMetaLine({ time, cost, prefix = "", isStrong = false }) {
   return `<div class="${className}">${prefix}${parts.join(" and ")}</div>`;
 }
 
+function fitNodeText(nodeEl, radius) {
+  if (!nodeEl) {
+    return;
+  }
+  const content = nodeEl.querySelector(".node__content");
+  if (!content) {
+    return;
+  }
+  const baseFontSize = Math.max(11, Math.min(radius * 0.24, 38));
+  const minFontSize = 10;
+  let fontSize = baseFontSize;
+
+  const fits = () =>
+    content.scrollHeight <= nodeEl.clientHeight &&
+    content.scrollWidth <= nodeEl.clientWidth;
+
+  nodeEl.style.setProperty("--node-font-size", `${fontSize}px`);
+  if (fits()) {
+    return;
+  }
+
+  let attempts = 0;
+  while (!fits() && fontSize > minFontSize && attempts < 14) {
+    fontSize = Math.max(minFontSize, fontSize * 0.9);
+    nodeEl.style.setProperty("--node-font-size", `${fontSize}px`);
+    attempts += 1;
+  }
+}
+
 function render() {
   mapContent.innerHTML = "";
   linksLayer.innerHTML = "";
@@ -489,8 +518,6 @@ function render() {
     }
     nodeEl.style.width = `${width}px`;
     nodeEl.style.height = `${height}px`;
-    const fontSize = Math.max(10, Math.min(radius * 0.22, 34));
-    nodeEl.style.setProperty("--node-font-size", `${fontSize}px`);
     nodeEl.style.left = `${position.x}px`;
     nodeEl.style.top = `${position.y}px`;
     nodeEl.style.transform = "translate(-50%, -50%)";
@@ -510,10 +537,12 @@ function render() {
     });
 
     nodeEl.innerHTML = `
-      <div class="node__title">${node.name}</div>
-      <div class="node__meta">
-        ${estimateLine}
-        ${totalLine}
+      <div class="node__content">
+        <div class="node__title">${node.name}</div>
+        <div class="node__meta">
+          ${estimateLine}
+          ${totalLine}
+        </div>
       </div>
     `;
 
@@ -549,6 +578,7 @@ function render() {
     });
 
     mapContent.appendChild(nodeEl);
+    fitNodeText(nodeEl, radius);
     nodeElements.set(node.id, { element: nodeEl, position, width, height });
   });
 
