@@ -24,7 +24,6 @@ const linkRequiredSelect = document.getElementById("link-required");
 const confirmLinkButton = document.getElementById("confirm-link");
 const cancelLinkButton = document.getElementById("cancel-link");
 const sidebarToggleButton = document.getElementById("sidebar-toggle");
-const sidebarOpenButton = document.getElementById("sidebar-open");
 const zoomInButton = document.getElementById("zoom-in");
 const zoomOutButton = document.getElementById("zoom-out");
 const appContainer = document.querySelector(".app");
@@ -1183,9 +1182,6 @@ zoomInButton.addEventListener("click", () => zoomByStep(1.2));
 zoomOutButton.addEventListener("click", () => zoomByStep(1 / 1.2));
 sidebarToggleButton.addEventListener("click", () => {
   setSidebarCollapsed(true);
-});
-sidebarOpenButton.addEventListener("click", () => {
-  setSidebarCollapsed(false);
 });
 
 mapViewport.addEventListener("click", () => {

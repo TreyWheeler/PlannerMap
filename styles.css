@@ -143,18 +143,6 @@ body.is-panning {
   outline-offset: 2px;
 }
 
-.map__toggle {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  display: none;
-  z-index: 2;
-}
-
-.app--sidebar-collapsed .map__toggle {
-  display: inline-flex;
-}
-
 .node {
   position: absolute;
   border-radius: 999px;
