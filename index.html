@@ -26,12 +26,20 @@
             <svg class="map__links" id="links-layer"></svg>
             <div class="map__content" id="map-content"></div>
           </div>
+          <button type="button" id="sidebar-open" class="btn map__toggle">
+            Show details
+          </button>
           <div class="map__hint">Scroll to zoom · Drag to pan · Click a node to edit</div>
         </section>
 
         <aside class="sidebar">
           <div class="sidebar__section">
-            <h2>Selected Node</h2>
+            <div class="sidebar__header">
+              <h2>Selected Node</h2>
+              <button type="button" id="sidebar-toggle" class="btn btn--ghost">
+                Hide panel
+              </button>
+            </div>
             <form id="node-form">
               <label>
                 Name
@@ -69,7 +77,6 @@
                 </select>
               </label>
               <div class="sidebar__buttons">
-                <button type="submit" class="btn btn--primary">Save</button>
                 <button type="button" id="add-child" class="btn">Add Child</button>
                 <button type="button" id="link-node" class="btn">Link Node</button>
                 <button type="button" id="delete-node" class="btn btn--danger">Delete</button>

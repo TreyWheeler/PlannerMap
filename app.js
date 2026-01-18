@@ -23,6 +23,9 @@ const linkDependentSelect = document.getElementById("link-dependent");
 const linkRequiredSelect = document.getElementById("link-required");
 const confirmLinkButton = document.getElementById("confirm-link");
 const cancelLinkButton = document.getElementById("cancel-link");
+const sidebarToggleButton = document.getElementById("sidebar-toggle");
+const sidebarOpenButton = document.getElementById("sidebar-open");
+const appContainer = document.querySelector(".app");
 
 let state = loadState();
 let selectedNodeId = state.nodes[0]?.id ?? null;
@@ -47,6 +50,20 @@ const STATUS_OPTIONS = [
   "In Progress",
   "Complete",
 ];
+
+const STATUS_CLASS_MAP = new Map(
+  STATUS_OPTIONS.map((status) => [
+    status,
+    `node--status-${status.toLowerCase().replace(/\s+/g, "-")}`,
+  ])
+);
+const STATUS_CLASS_NAMES = Array.from(STATUS_CLASS_MAP.values());
+const ASSIGNEE_CLASS_MAP = new Map([
+  ["Trey", "node--trey"],
+  ["Sarah", "node--sarah"],
+  ["Both", "node--both"],
+]);
+const ASSIGNEE_CLASS_NAMES = Array.from(ASSIGNEE_CLASS_MAP.values());
 
 function loadState() {
   const saved = localStorage.getItem(STORAGE_KEY);
@@ -427,17 +444,16 @@ function render() {
     if (node.status === "Shelved") {
       nodeEl.classList.add("node--shelved");
     }
+    const statusClass = STATUS_CLASS_MAP.get(node.status);
+    if (statusClass) {
+      nodeEl.classList.add(statusClass);
+    }
     if (shelvedBranchIds.has(node.id)) {
       nodeEl.classList.add("node--dimmed");
     }
-    if (node.assignedTo === "Trey") {
-      nodeEl.classList.add("node--trey");
-    }
-    if (node.assignedTo === "Sarah") {
-      nodeEl.classList.add("node--sarah");
-    }
-    if (node.assignedTo === "Both") {
-      nodeEl.classList.add("node--both");
+    const assigneeClass = ASSIGNEE_CLASS_MAP.get(node.assignedTo);
+    if (assigneeClass) {
+      nodeEl.classList.add(assigneeClass);
     }
     if (node.id === selectedNodeId) {
       nodeEl.classList.add("node--selected");
@@ -539,6 +555,33 @@ function updateLinksBounds() {
   linksLayer.setAttribute("height", rect.height);
 }
 
+function syncFormToState({ shouldRender = false } = {}) {
+  const selected = state.nodes.find((node) => node.id === selectedNodeId);
+  if (!selected) {
+    return;
+  }
+
+  const formData = new FormData(nodeForm);
+  selected.name = formData.get("name").toString();
+  selected.description = formData.get("description").toString();
+  selected.estimatedCost = Number(formData.get("estimatedCost")) || 0;
+  selected.estimatedTime = Number(formData.get("estimatedTime")) || 0;
+  selected.status = formData.get("status").toString();
+  selected.assignedTo = formData.get("assignedTo").toString();
+
+  saveState();
+
+  if (shouldRender) {
+    render();
+  } else {
+    updateSelectedNodeDisplay(selected);
+  }
+}
+
+function setSidebarCollapsed(isCollapsed) {
+  appContainer.classList.toggle("app--sidebar-collapsed", isCollapsed);
+}
+
 function updateForm() {
   const selected = state.nodes.find((node) => node.id === selectedNodeId);
   const formElements = nodeForm.elements;
@@ -561,6 +604,53 @@ function updateForm() {
   formElements.estimatedTime.value = selected.estimatedTime;
   formElements.status.value = selected.status;
   formElements.assignedTo.value = selected.assignedTo;
+}
+
+function updateSelectedNodeDisplay(selected) {
+  const nodeEl = mapContent.querySelector(
+    `[data-node-id="${selected.id}"]`
+  );
+  if (!nodeEl) {
+    return;
+  }
+
+  const titleEl = nodeEl.querySelector(".node__title");
+  if (titleEl) {
+    titleEl.textContent = selected.name;
+  }
+
+  const metaEl = nodeEl.querySelector(".node__meta");
+  if (metaEl) {
+    const totalsById = computeTotals();
+    const totals = totalsById.get(selected.id) || { cost: 0, time: 0 };
+    const estimateLine = formatMetaLine({
+      time: selected.estimatedTime,
+      cost: selected.estimatedCost,
+      isStrong: true,
+    });
+    const totalLine = formatMetaLine({
+      time: totals.time,
+      cost: totals.cost,
+      prefix: "Total: ",
+    });
+    metaEl.innerHTML = `${estimateLine}${totalLine}`;
+  }
+
+  STATUS_CLASS_NAMES.forEach((className) => {
+    nodeEl.classList.remove(className);
+  });
+  const statusClass = STATUS_CLASS_MAP.get(selected.status);
+  if (statusClass) {
+    nodeEl.classList.add(statusClass);
+  }
+
+  ASSIGNEE_CLASS_NAMES.forEach((className) => {
+    nodeEl.classList.remove(className);
+  });
+  const assigneeClass = ASSIGNEE_CLASS_MAP.get(selected.assignedTo);
+  if (assigneeClass) {
+    nodeEl.classList.add(assigneeClass);
+  }
 }
 
 function updateConnections() {
@@ -781,21 +871,19 @@ mapViewport.addEventListener("wheel", (event) => {
 
 nodeForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  const selected = state.nodes.find((node) => node.id === selectedNodeId);
-  if (!selected) {
-    return;
-  }
+  syncFormToState({ shouldRender: true });
+});
 
-  const formData = new FormData(nodeForm);
-  selected.name = formData.get("name").toString();
-  selected.description = formData.get("description").toString();
-  selected.estimatedCost = Number(formData.get("estimatedCost")) || 0;
-  selected.estimatedTime = Number(formData.get("estimatedTime")) || 0;
-  selected.status = formData.get("status").toString();
-  selected.assignedTo = formData.get("assignedTo").toString();
+nodeForm.addEventListener("input", () => {
+  syncFormToState();
+});
 
-  saveState();
-  render();
+nodeForm.addEventListener("change", (event) => {
+  const fieldName = event.target.name;
+  const requiresRender = ["status", "estimatedCost", "estimatedTime"].includes(
+    fieldName
+  );
+  syncFormToState({ shouldRender: requiresRender });
 });
 
 addRootButton.addEventListener("click", () => addNode());
@@ -811,6 +899,12 @@ confirmLinkButton.addEventListener("click", createLink);
 cancelLinkButton.addEventListener("click", hideLinkModal);
 fitViewButton.addEventListener("click", fitToScreen);
 resetViewButton.addEventListener("click", resetView);
+sidebarToggleButton.addEventListener("click", () => {
+  setSidebarCollapsed(true);
+});
+sidebarOpenButton.addEventListener("click", () => {
+  setSidebarCollapsed(false);
+});
 
 mapViewport.addEventListener("click", () => {
   selectedNodeId = null;
