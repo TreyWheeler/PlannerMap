@@ -25,6 +25,8 @@ const confirmLinkButton = document.getElementById("confirm-link");
 const cancelLinkButton = document.getElementById("cancel-link");
 const sidebarToggleButton = document.getElementById("sidebar-toggle");
 const sidebarOpenButton = document.getElementById("sidebar-open");
+const zoomInButton = document.getElementById("zoom-in");
+const zoomOutButton = document.getElementById("zoom-out");
 const appContainer = document.querySelector(".app");
 
 let state = loadState();
@@ -1108,27 +1110,34 @@ function getWheelScale(event) {
   return Math.exp(-delta * zoomIntensity);
 }
 
+function zoomToScale(nextScale, originX, originY) {
+  const clampedScale = Math.min(Math.max(nextScale, MIN_ZOOM), MAX_ZOOM);
+  if (clampedScale === viewState.scale) {
+    return;
+  }
+  const scaleRatio = clampedScale / viewState.scale;
+  viewState.x = originX - scaleRatio * (originX - viewState.x);
+  viewState.y = originY - scaleRatio * (originY - viewState.y);
+  viewState.scale = clampedScale;
+  applyTransform();
+}
+
+function zoomByStep(step) {
+  const rect = mapViewport.getBoundingClientRect();
+  const originX = rect.width / 2;
+  const originY = rect.height / 2;
+  zoomToScale(viewState.scale * step, originX, originY);
+}
+
 mapViewport.addEventListener(
   "wheel",
   (event) => {
     event.preventDefault();
     const scaleFactor = getWheelScale(event);
-    const nextScale = Math.min(
-      Math.max(viewState.scale * scaleFactor, MIN_ZOOM),
-      MAX_ZOOM
-    );
-    if (nextScale === viewState.scale) {
-      return;
-    }
     const rect = mapViewport.getBoundingClientRect();
     const offsetX = event.clientX - rect.left;
     const offsetY = event.clientY - rect.top;
-    const scaleRatio = nextScale / viewState.scale;
-
-    viewState.x = offsetX - scaleRatio * (offsetX - viewState.x);
-    viewState.y = offsetY - scaleRatio * (offsetY - viewState.y);
-    viewState.scale = nextScale;
-    applyTransform();
+    zoomToScale(viewState.scale * scaleFactor, offsetX, offsetY);
   },
   { passive: false }
 );
@@ -1162,6 +1171,8 @@ linkNodeButton.addEventListener("click", showLinkModal);
 confirmLinkButton.addEventListener("click", createLink);
 cancelLinkButton.addEventListener("click", hideLinkModal);
 fitViewButton.addEventListener("click", fitToScreen);
+zoomInButton.addEventListener("click", () => zoomByStep(1.2));
+zoomOutButton.addEventListener("click", () => zoomByStep(1 / 1.2));
 sidebarToggleButton.addEventListener("click", () => {
   setSidebarCollapsed(true);
 });
