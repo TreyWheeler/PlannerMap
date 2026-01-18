@@ -97,7 +97,7 @@ body {
 .node {
   position: absolute;
   border-radius: 999px;
-  padding: 8px 10px;
+  padding: 0.6em 0.7em;
   background: #ffffff;
   box-shadow: 0 16px 32px rgba(31, 36, 48, 0.12);
   border: 2px solid transparent;
@@ -107,12 +107,19 @@ body {
   align-items: center;
   justify-content: center;
   text-align: center;
+  cursor: grab;
+  font-size: var(--node-font-size, 14px);
+  line-height: 1.15;
 }
 
 .node:hover {
   transform: translate(-50%, -50%) scale(1.02);
   box-shadow: 0 20px 36px rgba(31, 36, 48, 0.18);
   border-color: rgba(75, 140, 255, 0.4);
+}
+
+.node:active {
+  cursor: grabbing;
 }
 
 .node--selected {
@@ -147,11 +154,18 @@ body {
 .node__title {
   font-weight: 600;
   margin: 0 0 6px;
+  font-size: 1.05em;
+  word-break: break-word;
+}
+
+.node__content {
+  width: 100%;
 }
 
 .node__meta {
-  font-size: 12px;
+  font-size: 0.72em;
   color: #5d6472;
+  word-break: break-word;
 }
 
 .node__meta-line {
