@@ -5,6 +5,7 @@ const NODE_RADIUS_RANGE = [
   Math.min(NODE_WIDTH_RANGE[0], NODE_HEIGHT_RANGE[0]) / 2,
   Math.max(NODE_WIDTH_RANGE[1], NODE_HEIGHT_RANGE[1]) / 2,
 ];
+const ROOT_NODE_RADIUS = NODE_RADIUS_RANGE[1];
 const ESTIMATED_RATE = 100;
 
 const mapViewport = document.getElementById("map-viewport");
@@ -32,11 +33,14 @@ let viewState = {
   scale: 1,
 };
 let isDragging = false;
+let isNodeDragging = false;
+let draggedNodeId = null;
+let dragOffset = { x: 0, y: 0 };
+let didDragNode = false;
 let dragStart = { x: 0, y: 0 };
 let dragOrigin = { x: 0, y: 0 };
 let layoutCache = {
   positions: new Map(),
-  velocities: new Map(),
   animationFrameId: null,
 };
 
@@ -116,6 +120,13 @@ function buildGraph() {
   return { nodesById, childrenMap, incomingMap };
 }
 
+function getRootId(incomingMap) {
+  const roots = state.nodes.filter(
+    (node) => !(incomingMap.get(node.id) || []).length
+  );
+  return roots[0]?.id ?? state.nodes[0]?.id ?? null;
+}
+
 function computeTotals() {
   const { nodesById, childrenMap } = buildGraph();
   const memo = new Map();
@@ -157,9 +168,9 @@ function computeTotals() {
   return totalsById;
 }
 
-function computeLayout(nodeSizes, steps = 1) {
+function computeLayout(nodeSizes) {
+  const { childrenMap, incomingMap, nodesById } = buildGraph();
   const positions = layoutCache.positions;
-  const velocities = layoutCache.velocities;
   const viewportRect = mapViewport.getBoundingClientRect();
   const centerX = viewportRect.width / 2;
   const centerY = viewportRect.height / 2;
@@ -169,12 +180,16 @@ function computeLayout(nodeSizes, steps = 1) {
   layoutCache.positions.forEach((_, id) => {
     if (!existingIds.has(id)) {
       layoutCache.positions.delete(id);
-      layoutCache.velocities.delete(id);
     }
   });
 
   state.nodes.forEach((node, index) => {
     let position = positions.get(node.id);
+    if (node.positionLocked && node.position) {
+      position = { ...node.position };
+      positions.set(node.id, position);
+      return;
+    }
     if (!position) {
       const angle = (index / nodeCount) * Math.PI * 2;
       const radius = 180 + (index % 5) * 20;
@@ -184,98 +199,78 @@ function computeLayout(nodeSizes, steps = 1) {
       };
       positions.set(node.id, position);
     }
-    if (!velocities.has(node.id)) {
-      velocities.set(node.id, { x: 0, y: 0 });
-    }
   });
 
-  const config = {
-    repulsionStrength: 48000,
-    springStrength: 0.01,
-    centerStrength: 0.002,
-    damping: 0.86,
-    maxVelocity: 12,
-    linkDistance: 220,
-  };
-
-  const nodeArray = state.nodes.map((node) => ({
-    id: node.id,
-    radius: nodeSizes.get(node.id)?.radius || 80,
-  }));
-
-  for (let i = 0; i < steps; i += 1) {
-    const forces = new Map();
-    nodeArray.forEach((node) => {
-      const position = positions.get(node.id);
-      const centerForceX = (centerX - position.x) * config.centerStrength;
-      const centerForceY = (centerY - position.y) * config.centerStrength;
-      forces.set(node.id, { x: centerForceX, y: centerForceY });
-    });
-
-    for (let a = 0; a < nodeArray.length; a += 1) {
-      const nodeA = nodeArray[a];
-      const posA = positions.get(nodeA.id);
-      for (let b = a + 1; b < nodeArray.length; b += 1) {
-        const nodeB = nodeArray[b];
-        const posB = positions.get(nodeB.id);
-        const dx = posB.x - posA.x;
-        const dy = posB.y - posA.y;
-        const distance = Math.hypot(dx, dy) || 1;
-        const minDistance = nodeA.radius + nodeB.radius + 20;
-        const overlap = Math.max(0, minDistance - distance);
-        const repulsionForce =
-          config.repulsionStrength / (distance * distance) + overlap * 1.5;
-        const forceX = (dx / distance) * repulsionForce;
-        const forceY = (dy / distance) * repulsionForce;
-        const forceA = forces.get(nodeA.id);
-        const forceB = forces.get(nodeB.id);
-        forceA.x -= forceX;
-        forceA.y -= forceY;
-        forceB.x += forceX;
-        forceB.y += forceY;
-      }
+  const rootId = getRootId(incomingMap);
+  if (rootId) {
+    const rootNode = nodesById.get(rootId);
+    if (rootNode && !rootNode.positionLocked) {
+      positions.set(rootId, { x: centerX, y: centerY });
     }
+  }
 
-    state.links.forEach((link) => {
-      const source = positions.get(link.from);
-      const target = positions.get(link.to);
-      if (!source || !target) {
+  const roots = state.nodes.filter(
+    (node) => !(incomingMap.get(node.id) || []).length
+  );
+  const extraRoots = roots.filter((node) => node.id !== rootId);
+  if (rootId && extraRoots.length > 0) {
+    const rootPosition = positions.get(rootId) || { x: centerX, y: centerY };
+    const rootRadius = nodeSizes.get(rootId)?.radius || ROOT_NODE_RADIUS;
+    const extraRadius = rootRadius * 2.2;
+    const angleStep = (Math.PI * 2) / extraRoots.length;
+    extraRoots.forEach((node, index) => {
+      if (node.positionLocked) {
         return;
       }
-      const sourceRadius = nodeSizes.get(link.from)?.radius || 80;
-      const targetRadius = nodeSizes.get(link.to)?.radius || 80;
-      const dx = target.x - source.x;
-      const dy = target.y - source.y;
-      const distance = Math.hypot(dx, dy) || 1;
-      const desired = config.linkDistance + sourceRadius + targetRadius;
-      const stretch = distance - desired;
-      const springForce = stretch * config.springStrength;
-      const forceX = (dx / distance) * springForce;
-      const forceY = (dy / distance) * springForce;
-      const sourceForce = forces.get(link.from);
-      const targetForce = forces.get(link.to);
-      sourceForce.x += forceX;
-      sourceForce.y += forceY;
-      targetForce.x -= forceX;
-      targetForce.y -= forceY;
+      const angle = -Math.PI / 2 + angleStep * index;
+      positions.set(node.id, {
+        x: rootPosition.x + Math.cos(angle) * extraRadius,
+        y: rootPosition.y + Math.sin(angle) * extraRadius,
+      });
     });
+  }
 
-    nodeArray.forEach((node) => {
-      const position = positions.get(node.id);
-      const velocity = velocities.get(node.id);
-      const force = forces.get(node.id);
-      velocity.x = (velocity.x + force.x) * config.damping;
-      velocity.y = (velocity.y + force.y) * config.damping;
-      velocity.x = Math.max(
-        -config.maxVelocity,
-        Math.min(config.maxVelocity, velocity.x)
+  const queue = rootId ? [rootId] : [];
+  const seen = new Set(queue);
+  if (!rootId) {
+    roots.forEach((node) => {
+      queue.push(node.id);
+      seen.add(node.id);
+    });
+  }
+
+  while (queue.length > 0) {
+    const parentId = queue.shift();
+    const parentPos = positions.get(parentId);
+    if (!parentPos) {
+      continue;
+    }
+    const children = childrenMap.get(parentId) || [];
+    const autoChildren = children.filter(
+      (childId) => !nodesById.get(childId)?.positionLocked
+    );
+    if (autoChildren.length > 0) {
+      const parentRadius = nodeSizes.get(parentId)?.radius || ROOT_NODE_RADIUS;
+      const childRadii = autoChildren.map(
+        (childId) => nodeSizes.get(childId)?.radius || parentRadius * 0.5
       );
-      velocity.y = Math.max(
-        -config.maxVelocity,
-        Math.min(config.maxVelocity, velocity.y)
-      );
-      position.x += velocity.x;
-      position.y += velocity.y;
+      const maxChildRadius = Math.max(...childRadii, 0);
+      const distance = parentRadius + maxChildRadius + 90;
+      const angleStep = (Math.PI * 2) / autoChildren.length;
+      autoChildren.forEach((childId, index) => {
+        const angle = -Math.PI / 2 + angleStep * index;
+        positions.set(childId, {
+          x: parentPos.x + Math.cos(angle) * distance,
+          y: parentPos.y + Math.sin(angle) * distance,
+        });
+      });
+    }
+
+    children.forEach((childId) => {
+      if (!seen.has(childId)) {
+        seen.add(childId);
+        queue.push(childId);
+      }
     });
   }
 
@@ -327,22 +322,17 @@ function startLayoutAnimation(nodeSizes, nodeElements, linkElements) {
     cancelAnimationFrame(layoutCache.animationFrameId);
   }
 
-  const tick = () => {
-    const positions = computeLayout(nodeSizes, 2);
-    nodeElements.forEach((node, id) => {
-      const position = positions.get(id);
-      if (!position) {
-        return;
-      }
-      node.position = position;
-      node.element.style.left = `${position.x}px`;
-      node.element.style.top = `${position.y}px`;
-    });
-    updateLinkPositions(nodeElements, linkElements);
-    layoutCache.animationFrameId = requestAnimationFrame(tick);
-  };
-
-  tick();
+  const positions = computeLayout(nodeSizes);
+  nodeElements.forEach((node, id) => {
+    const position = positions.get(id);
+    if (!position) {
+      return;
+    }
+    node.position = position;
+    node.element.style.left = `${position.x}px`;
+    node.element.style.top = `${position.y}px`;
+  });
+  updateLinkPositions(nodeElements, linkElements);
 }
 
 function collectShelvedBranchIds() {
@@ -389,31 +379,86 @@ function render() {
 
   const totalsById = computeTotals();
   const shelvedBranchIds = collectShelvedBranchIds();
-  const sizeValues = state.nodes.map((node) => {
-    const totals = totalsById.get(node.id);
-    return totals.cost + totals.time * ESTIMATED_RATE;
-  });
-  const minSize = Math.min(...sizeValues, 1);
-  const maxSize = Math.max(...sizeValues, minSize + 1);
-
+  const { childrenMap, incomingMap } = buildGraph();
   const nodeSizes = new Map();
-  state.nodes.forEach((node) => {
-    const totals = totalsById.get(node.id) || { cost: 0, time: 0 };
-    const totalEstimate = totals.cost + totals.time * ESTIMATED_RATE;
-    const scaleValue = (totalEstimate - minSize) / (maxSize - minSize || 1);
-    const radius =
-      NODE_RADIUS_RANGE[0] +
-      (NODE_RADIUS_RANGE[1] - NODE_RADIUS_RANGE[0]) * scaleValue;
-    const width = radius * 2;
-    const height = radius * 2;
-    nodeSizes.set(node.id, {
-      width,
-      height,
-      radius,
+  const rootId = getRootId(incomingMap);
+
+  if (rootId) {
+    nodeSizes.set(rootId, {
+      radius: ROOT_NODE_RADIUS,
+      width: ROOT_NODE_RADIUS * 2,
+      height: ROOT_NODE_RADIUS * 2,
     });
+  }
+
+  const estimateFor = (nodeId) => {
+    const totals = totalsById.get(nodeId) || { cost: 0, time: 0 };
+    return totals.cost + totals.time * ESTIMATED_RATE;
+  };
+
+  const applySiblingSizing = (parentId, childIds) => {
+    if (!childIds.length) {
+      return;
+    }
+    const parentRadius =
+      nodeSizes.get(parentId)?.radius || ROOT_NODE_RADIUS;
+    const maxChildRadius = parentRadius * 0.75;
+    const minChildRadius = Math.max(parentRadius * 0.35, 36);
+    const values = childIds.map((childId) => estimateFor(childId));
+    const minValue = Math.min(...values);
+    const maxValue = Math.max(...values);
+
+    childIds.forEach((childId, index) => {
+      let scaleValue = 0.5;
+      if (maxValue !== minValue) {
+        scaleValue = (values[index] - minValue) / (maxValue - minValue);
+      } else if (childIds.length === 1) {
+        scaleValue = 1;
+      }
+      const radius =
+        minChildRadius + (maxChildRadius - minChildRadius) * scaleValue;
+      nodeSizes.set(childId, {
+        radius,
+        width: radius * 2,
+        height: radius * 2,
+      });
+    });
+  };
+
+  const queue = rootId ? [rootId] : [];
+  const seen = new Set(queue);
+  while (queue.length > 0) {
+    const parentId = queue.shift();
+    const children = childrenMap.get(parentId) || [];
+    applySiblingSizing(parentId, children);
+    children.forEach((childId) => {
+      if (!seen.has(childId)) {
+        seen.add(childId);
+        queue.push(childId);
+      }
+    });
+  }
+
+  const roots = state.nodes.filter(
+    (node) => !(incomingMap.get(node.id) || []).length
+  );
+  const extraRoots = roots.filter((node) => node.id !== rootId);
+  if (extraRoots.length > 0) {
+    applySiblingSizing(rootId || extraRoots[0].id, extraRoots.map((n) => n.id));
+  }
+
+  state.nodes.forEach((node) => {
+    if (!nodeSizes.has(node.id)) {
+      const radius = ROOT_NODE_RADIUS * 0.55;
+      nodeSizes.set(node.id, {
+        radius,
+        width: radius * 2,
+        height: radius * 2,
+      });
+    }
   });
 
-  const positions = computeLayout(nodeSizes, 1);
+  const positions = computeLayout(nodeSizes);
   const nodeElements = new Map();
   const linkElements = [];
 
@@ -470,7 +515,31 @@ function render() {
       </div>
     `;
 
+    nodeEl.addEventListener("mousedown", (event) => {
+      if (event.button !== 0) {
+        return;
+      }
+      event.stopPropagation();
+      selectedNodeId = node.id;
+      updateForm();
+      updateConnections();
+      isNodeDragging = true;
+      draggedNodeId = node.id;
+      didDragNode = false;
+      const rect = mapViewport.getBoundingClientRect();
+      const mapX = (event.clientX - rect.left - viewState.x) / viewState.scale;
+      const mapY = (event.clientY - rect.top - viewState.y) / viewState.scale;
+      dragOffset = {
+        x: position.x - mapX,
+        y: position.y - mapY,
+      };
+    });
+
     nodeEl.addEventListener("click", (event) => {
+      if (didDragNode) {
+        event.stopPropagation();
+        return;
+      }
       event.stopPropagation();
       selectedNodeId = node.id;
       updateForm();
@@ -616,6 +685,8 @@ function addNode({ parentId } = {}) {
     estimatedTime: 0,
     status: "Considering",
     assignedTo: "",
+    positionLocked: false,
+    position: null,
   };
   state.nodes.push(newNode);
   if (parentId) {
@@ -691,6 +762,14 @@ function applyTransform() {
   linksLayer.style.transform = mapContent.style.transform;
 }
 
+function screenToMapPoint(clientX, clientY) {
+  const rect = mapViewport.getBoundingClientRect();
+  return {
+    x: (clientX - rect.left - viewState.x) / viewState.scale,
+    y: (clientY - rect.top - viewState.y) / viewState.scale,
+  };
+}
+
 function fitToScreen() {
   const nodes = Array.from(mapContent.children);
   if (nodes.length === 0) {
@@ -735,6 +814,9 @@ mapViewport.addEventListener("mousedown", (event) => {
   if (event.button !== 0) {
     return;
   }
+  if (isNodeDragging) {
+    return;
+  }
   isDragging = true;
   mapViewport.classList.add("is-dragging");
   dragStart = { x: event.clientX, y: event.clientY };
@@ -742,6 +824,52 @@ mapViewport.addEventListener("mousedown", (event) => {
 });
 
 mapViewport.addEventListener("mousemove", (event) => {
+  if (isNodeDragging && draggedNodeId) {
+    const mapPoint = screenToMapPoint(event.clientX, event.clientY);
+    const node = state.nodes.find((item) => item.id === draggedNodeId);
+    if (!node) {
+      return;
+    }
+    const nextPosition = {
+      x: mapPoint.x + dragOffset.x,
+      y: mapPoint.y + dragOffset.y,
+    };
+    if (
+      Math.abs(nextPosition.x - (node.position?.x || 0)) > 2 ||
+      Math.abs(nextPosition.y - (node.position?.y || 0)) > 2
+    ) {
+      didDragNode = true;
+    }
+    node.position = { ...nextPosition };
+    node.positionLocked = true;
+    layoutCache.positions.set(node.id, { ...nextPosition });
+    const nodeElement = mapContent.querySelector(
+      `[data-node-id="${node.id}"]`
+    );
+    if (nodeElement) {
+      nodeElement.style.left = `${nextPosition.x}px`;
+      nodeElement.style.top = `${nextPosition.y}px`;
+    }
+    const nodeElements = new Map();
+    mapContent.querySelectorAll(".node").forEach((element) => {
+      const id = element.dataset.nodeId;
+      const position = layoutCache.positions.get(id);
+      nodeElements.set(id, { element, position });
+    });
+    const linkElements = [];
+    linksLayer.querySelectorAll("path").forEach((path, index) => {
+      const link = state.links[index];
+      const arrows = linksLayer.querySelectorAll("circle");
+      linkElements.push({
+        from: link.from,
+        to: link.to,
+        path,
+        arrow: arrows[index],
+      });
+    });
+    updateLinkPositions(nodeElements, linkElements);
+    return;
+  }
   if (!isDragging) {
     return;
   }
@@ -754,6 +882,11 @@ mapViewport.addEventListener("mousemove", (event) => {
 
 mapViewport.addEventListener("mouseup", () => {
   isDragging = false;
+  if (isNodeDragging) {
+    saveState();
+  }
+  isNodeDragging = false;
+  draggedNodeId = null;
   mapViewport.classList.remove("is-dragging");
 });
 
@@ -761,6 +894,11 @@ mapViewport.addEventListener("mouseleave", () => {
   if (isDragging) {
     isDragging = false;
     mapViewport.classList.remove("is-dragging");
+  }
+  if (isNodeDragging) {
+    saveState();
+    isNodeDragging = false;
+    draggedNodeId = null;
   }
 });
 
