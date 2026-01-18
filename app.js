@@ -42,6 +42,8 @@ let dragOffset = { x: 0, y: 0 };
 let didDragNode = false;
 let dragStart = { x: 0, y: 0 };
 let dragOrigin = { x: 0, y: 0 };
+let draggedSubtreeIds = new Set();
+let dragStartPositions = new Map();
 let layoutCache = {
   positions: new Map(),
   animationFrameId: null,
@@ -135,6 +137,24 @@ function buildGraph() {
   });
 
   return { nodesById, childrenMap, incomingMap };
+}
+
+function collectDescendants(rootId, childrenMap) {
+  const visited = new Set();
+  const queue = [rootId];
+  while (queue.length) {
+    const currentId = queue.shift();
+    if (visited.has(currentId)) {
+      continue;
+    }
+    visited.add(currentId);
+    (childrenMap.get(currentId) || []).forEach((childId) => {
+      if (!visited.has(childId)) {
+        queue.push(childId);
+      }
+    });
+  }
+  return visited;
 }
 
 function getRootId(incomingMap) {
@@ -580,6 +600,20 @@ function render() {
         x: position.x - mapX,
         y: position.y - mapY,
       };
+      const { childrenMap, nodesById } = buildGraph();
+      draggedSubtreeIds = collectDescendants(node.id, childrenMap);
+      dragStartPositions = new Map();
+      draggedSubtreeIds.forEach((nodeId) => {
+        const cachedPosition = layoutCache.positions.get(nodeId);
+        const fallbackPosition = nodesById.get(nodeId)?.position;
+        const startPosition = cachedPosition || fallbackPosition;
+        if (startPosition) {
+          dragStartPositions.set(nodeId, { ...startPosition });
+        }
+      });
+      if (!dragStartPositions.has(node.id)) {
+        dragStartPositions.set(node.id, { ...position });
+      }
     });
 
     nodeEl.addEventListener("click", (event) => {
@@ -957,22 +991,44 @@ mapViewport.addEventListener("mousemove", (event) => {
       x: mapPoint.x + dragOffset.x,
       y: mapPoint.y + dragOffset.y,
     };
-    if (
-      Math.abs(nextPosition.x - (node.position?.x || 0)) > 2 ||
-      Math.abs(nextPosition.y - (node.position?.y || 0)) > 2
-    ) {
+    const rootStart = dragStartPositions.get(node.id) || node.position;
+    const delta = rootStart
+      ? {
+          x: nextPosition.x - rootStart.x,
+          y: nextPosition.y - rootStart.y,
+        }
+      : { x: 0, y: 0 };
+    if (Math.abs(delta.x) > 2 || Math.abs(delta.y) > 2) {
       didDragNode = true;
     }
-    node.position = { ...nextPosition };
-    node.positionLocked = true;
-    layoutCache.positions.set(node.id, { ...nextPosition });
-    const nodeElement = mapContent.querySelector(
-      `[data-node-id="${node.id}"]`
-    );
-    if (nodeElement) {
-      nodeElement.style.left = `${nextPosition.x}px`;
-      nodeElement.style.top = `${nextPosition.y}px`;
-    }
+    const nodesById = new Map(state.nodes.map((item) => [item.id, item]));
+    const idsToMove = draggedSubtreeIds.size
+      ? draggedSubtreeIds
+      : new Set([node.id]);
+    idsToMove.forEach((nodeId) => {
+      const startPosition = dragStartPositions.get(nodeId);
+      if (!startPosition) {
+        return;
+      }
+      const movedPosition = {
+        x: startPosition.x + delta.x,
+        y: startPosition.y + delta.y,
+      };
+      const movedNode = nodesById.get(nodeId);
+      if (!movedNode) {
+        return;
+      }
+      movedNode.position = { ...movedPosition };
+      movedNode.positionLocked = true;
+      layoutCache.positions.set(nodeId, { ...movedPosition });
+      const nodeElement = mapContent.querySelector(
+        `[data-node-id="${nodeId}"]`
+      );
+      if (nodeElement) {
+        nodeElement.style.left = `${movedPosition.x}px`;
+        nodeElement.style.top = `${movedPosition.y}px`;
+      }
+    });
     const nodeElements = new Map();
     mapContent.querySelectorAll(".node").forEach((element) => {
       const id = element.dataset.nodeId;
@@ -1010,6 +1066,8 @@ mapViewport.addEventListener("mouseup", () => {
   }
   isNodeDragging = false;
   draggedNodeId = null;
+  draggedSubtreeIds = new Set();
+  dragStartPositions = new Map();
   mapViewport.classList.remove("is-dragging");
 });
 
@@ -1022,6 +1080,8 @@ mapViewport.addEventListener("mouseleave", () => {
     saveState();
     isNodeDragging = false;
     draggedNodeId = null;
+    draggedSubtreeIds = new Set();
+    dragStartPositions = new Map();
   }
 });
 
