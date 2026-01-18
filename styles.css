@@ -97,7 +97,7 @@ body {
 .node {
   position: absolute;
   border-radius: 999px;
-  padding: 8px 10px;
+  padding: 0.6em 0.7em;
   background: #ffffff;
   box-shadow: 0 16px 32px rgba(31, 36, 48, 0.12);
   border: 2px solid transparent;
@@ -108,6 +108,9 @@ body {
   justify-content: center;
   text-align: center;
   cursor: grab;
+  font-size: var(--node-font-size, 14px);
+  line-height: 1.15;
+  overflow: hidden;
 }
 
 .node:hover {
@@ -152,10 +155,11 @@ body {
 .node__title {
   font-weight: 600;
   margin: 0 0 6px;
+  font-size: 1.05em;
 }
 
 .node__meta {
-  font-size: 12px;
+  font-size: 0.72em;
   color: #5d6472;
 }
 

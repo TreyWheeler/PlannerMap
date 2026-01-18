@@ -5,7 +5,7 @@ const NODE_RADIUS_RANGE = [
   Math.min(NODE_WIDTH_RANGE[0], NODE_HEIGHT_RANGE[0]) / 2,
   Math.max(NODE_WIDTH_RANGE[1], NODE_HEIGHT_RANGE[1]) / 2,
 ];
-const ROOT_NODE_RADIUS = NODE_RADIUS_RANGE[1];
+const ROOT_NODE_RADIUS = NODE_RADIUS_RANGE[1] * 3;
 const ESTIMATED_RATE = 100;
 
 const mapViewport = document.getElementById("map-viewport");
@@ -465,7 +465,7 @@ function render() {
   state.nodes.forEach((node) => {
     const totals = totalsById.get(node.id) || { cost: 0, time: 0 };
     const position = positions.get(node.id) || { x: 0, y: 0 };
-    const { width, height } = nodeSizes.get(node.id);
+    const { width, height, radius } = nodeSizes.get(node.id);
 
     const nodeEl = document.createElement("div");
     nodeEl.className = "node";
@@ -489,6 +489,8 @@ function render() {
     }
     nodeEl.style.width = `${width}px`;
     nodeEl.style.height = `${height}px`;
+    const fontSize = Math.max(10, Math.min(radius * 0.22, 34));
+    nodeEl.style.setProperty("--node-font-size", `${fontSize}px`);
     nodeEl.style.left = `${position.x}px`;
     nodeEl.style.top = `${position.y}px`;
     nodeEl.style.transform = "translate(-50%, -50%)";
