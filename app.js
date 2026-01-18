@@ -489,6 +489,7 @@ function render() {
     nodeEl.addEventListener("click", (event) => {
       event.stopPropagation();
       selectedNodeId = node.id;
+      setSidebarCollapsed(false);
       updateForm();
       render();
     });
