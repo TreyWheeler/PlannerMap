@@ -16,6 +16,7 @@
         <div class="app__actions">
           <button id="add-root" class="btn btn--primary">Add Root Node</button>
           <button id="fit-view" class="btn">Fit to Map</button>
+          <button id="theme-button" class="btn btn--ghost">Theme</button>
         </div>
       </header>
 
@@ -105,6 +106,46 @@
         <div class="modal__actions">
           <button id="cancel-link" class="btn">Cancel</button>
           <button id="confirm-link" class="btn btn--primary">Create Link</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="theme-modal" aria-hidden="true">
+      <div class="modal__content modal__content--wide">
+        <h3>Theme Colors</h3>
+        <p>Adjust the interface colors for your workspace.</p>
+        <div class="theme-grid">
+          <label>
+            App background
+            <input type="color" data-theme-variable="--app-bg" />
+          </label>
+          <label>
+            App text
+            <input type="color" data-theme-variable="--app-text" />
+          </label>
+          <label>
+            Header & panels
+            <input type="color" data-theme-variable="--panel-bg" />
+          </label>
+          <label>
+            Primary accent
+            <input type="color" data-theme-variable="--primary" />
+          </label>
+          <label>
+            Map gradient start
+            <input type="color" data-theme-variable="--map-bg-start" />
+          </label>
+          <label>
+            Map gradient end
+            <input type="color" data-theme-variable="--map-bg-end" />
+          </label>
+          <label>
+            Node background
+            <input type="color" data-theme-variable="--node-bg" />
+          </label>
+        </div>
+        <div class="modal__actions">
+          <button id="close-theme" class="btn btn--primary">Close</button>
         </div>
       </div>
     </div>

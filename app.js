@@ -23,6 +23,12 @@ const linkDependentSelect = document.getElementById("link-dependent");
 const linkRequiredSelect = document.getElementById("link-required");
 const confirmLinkButton = document.getElementById("confirm-link");
 const cancelLinkButton = document.getElementById("cancel-link");
+const themeButton = document.getElementById("theme-button");
+const themeModal = document.getElementById("theme-modal");
+const themeCloseButton = document.getElementById("close-theme");
+const themeColorInputs = document.querySelectorAll(
+  "#theme-modal input[type='color']"
+);
 const sidebarToggleButton = document.getElementById("sidebar-toggle");
 const sidebarOpenButton = document.getElementById("sidebar-open");
 const appContainer = document.querySelector(".app");
@@ -71,6 +77,28 @@ const ASSIGNEE_CLASS_MAP = new Map([
   ["Both", "node--both"],
 ]);
 const ASSIGNEE_CLASS_NAMES = Array.from(ASSIGNEE_CLASS_MAP.values());
+
+function normalizeColorToHex(value) {
+  if (!value) {
+    return "#000000";
+  }
+  const trimmed = value.trim();
+  if (trimmed.startsWith("#")) {
+    return trimmed;
+  }
+  const match = trimmed.match(/rgba?\\(([^)]+)\\)/);
+  if (!match) {
+    return "#000000";
+  }
+  const rgbValues = match[1]
+    .split(",")
+    .slice(0, 3)
+    .map((part) => Number.parseFloat(part.trim()));
+  return `#${rgbValues
+    .map((channel) => Math.max(0, Math.min(255, Math.round(channel))))
+    .map((channel) => channel.toString(16).padStart(2, "0"))
+    .join("")}`;
+}
 
 function loadState() {
   const saved = localStorage.getItem(STORAGE_KEY);
@@ -896,6 +924,30 @@ function hideLinkModal() {
   linkModal.setAttribute("aria-hidden", "true");
 }
 
+function showThemeModal() {
+  themeModal.classList.add("is-open");
+  themeModal.setAttribute("aria-hidden", "false");
+}
+
+function hideThemeModal() {
+  themeModal.classList.remove("is-open");
+  themeModal.setAttribute("aria-hidden", "true");
+}
+
+function syncThemeInputs() {
+  const styles = getComputedStyle(document.documentElement);
+  themeColorInputs.forEach((input) => {
+    const cssVariable = input.dataset.themeVariable;
+    if (!cssVariable) {
+      return;
+    }
+    const currentValue = styles.getPropertyValue(cssVariable);
+    if (currentValue) {
+      input.value = normalizeColorToHex(currentValue);
+    }
+  });
+}
+
 function createLink() {
   const dependentId = linkDependentSelect.value;
   const requiredId = linkRequiredSelect.value;
@@ -1162,6 +1214,25 @@ linkNodeButton.addEventListener("click", showLinkModal);
 confirmLinkButton.addEventListener("click", createLink);
 cancelLinkButton.addEventListener("click", hideLinkModal);
 fitViewButton.addEventListener("click", fitToScreen);
+themeButton.addEventListener("click", () => {
+  syncThemeInputs();
+  showThemeModal();
+});
+themeCloseButton.addEventListener("click", hideThemeModal);
+themeModal.addEventListener("click", (event) => {
+  if (event.target === themeModal) {
+    hideThemeModal();
+  }
+});
+themeColorInputs.forEach((input) => {
+  input.addEventListener("input", () => {
+    const cssVariable = input.dataset.themeVariable;
+    if (!cssVariable) {
+      return;
+    }
+    document.documentElement.style.setProperty(cssVariable, input.value);
+  });
+});
 sidebarToggleButton.addEventListener("click", () => {
   setSidebarCollapsed(true);
 });
