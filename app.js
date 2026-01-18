@@ -1,11 +1,46 @@
 const STORAGE_KEY = "plannerMapDataV1";
-const NODE_WIDTH_RANGE = [170, 240];
-const NODE_HEIGHT_RANGE = [120, 190];
+const NODE_SIZE_DIFFERENTIAL_MULTIPLIER = 5;
+const NODE_WIDTH_RANGE = [
+  170,
+  170 + (240 - 170) * NODE_SIZE_DIFFERENTIAL_MULTIPLIER,
+];
+const NODE_HEIGHT_RANGE = [
+  120,
+  120 + (190 - 120) * NODE_SIZE_DIFFERENTIAL_MULTIPLIER,
+];
 const NODE_RADIUS_RANGE = [
   Math.min(NODE_WIDTH_RANGE[0], NODE_HEIGHT_RANGE[0]) / 2,
   Math.max(NODE_WIDTH_RANGE[1], NODE_HEIGHT_RANGE[1]) / 2,
 ];
 const ESTIMATED_RATE = 100;
+const BASE_LAYOUT_CONFIG = {
+  repulsionStrength: 48000,
+  springStrength: 0.01,
+  centerStrength: 0.002,
+  damping: 0.86,
+  maxVelocity: 12,
+  linkDistance: 220,
+};
+const LAYOUT_SETTLE_VELOCITY = 0.08;
+const LAYOUT_SETTLE_FRAMES = 20;
+
+function getLayoutConfig() {
+  const sizeScale = Math.max(1, NODE_SIZE_DIFFERENTIAL_MULTIPLIER);
+  const spacingScale = Math.sqrt(sizeScale);
+  const forceScale = 1 / spacingScale;
+
+  return {
+    repulsionStrength: BASE_LAYOUT_CONFIG.repulsionStrength * forceScale,
+    springStrength: BASE_LAYOUT_CONFIG.springStrength * forceScale,
+    centerStrength: BASE_LAYOUT_CONFIG.centerStrength * forceScale,
+    damping: Math.min(
+      0.95,
+      BASE_LAYOUT_CONFIG.damping + (sizeScale - 1) * 0.02
+    ),
+    maxVelocity: BASE_LAYOUT_CONFIG.maxVelocity * spacingScale,
+    linkDistance: BASE_LAYOUT_CONFIG.linkDistance * spacingScale,
+  };
+}
 
 const mapViewport = document.getElementById("map-viewport");
 const mapContent = document.getElementById("map-content");
@@ -189,14 +224,7 @@ function computeLayout(nodeSizes, steps = 1) {
     }
   });
 
-  const config = {
-    repulsionStrength: 48000,
-    springStrength: 0.01,
-    centerStrength: 0.002,
-    damping: 0.86,
-    maxVelocity: 12,
-    linkDistance: 220,
-  };
+  const config = getLayoutConfig();
 
   const nodeArray = state.nodes.map((node) => ({
     id: node.id,
@@ -327,8 +355,11 @@ function startLayoutAnimation(nodeSizes, nodeElements, linkElements) {
     cancelAnimationFrame(layoutCache.animationFrameId);
   }
 
+  let settledFrames = 0;
+
   const tick = () => {
     const positions = computeLayout(nodeSizes, 2);
+    let maxVelocity = 0;
     nodeElements.forEach((node, id) => {
       const position = positions.get(id);
       if (!position) {
@@ -338,7 +369,22 @@ function startLayoutAnimation(nodeSizes, nodeElements, linkElements) {
       node.element.style.left = `${position.x}px`;
       node.element.style.top = `${position.y}px`;
     });
+    layoutCache.velocities.forEach((velocity) => {
+      const speed = Math.hypot(velocity.x, velocity.y);
+      if (speed > maxVelocity) {
+        maxVelocity = speed;
+      }
+    });
     updateLinkPositions(nodeElements, linkElements);
+    if (maxVelocity < LAYOUT_SETTLE_VELOCITY) {
+      settledFrames += 1;
+      if (settledFrames >= LAYOUT_SETTLE_FRAMES) {
+        layoutCache.animationFrameId = null;
+        return;
+      }
+    } else {
+      settledFrames = 0;
+    }
     layoutCache.animationFrameId = requestAnimationFrame(tick);
   };
 
