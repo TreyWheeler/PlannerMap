@@ -1079,6 +1079,7 @@ sidebarOpenButton.addEventListener("click", () => {
 
 mapViewport.addEventListener("click", () => {
   selectedNodeId = null;
+  setSidebarCollapsed(true);
   render();
 });
 
