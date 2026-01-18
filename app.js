@@ -74,6 +74,10 @@ const ASSIGNEE_CLASS_MAP = new Map([
 ]);
 const ASSIGNEE_CLASS_NAMES = Array.from(ASSIGNEE_CLASS_MAP.values());
 
+function setTextSelectionDisabled(isDisabled) {
+  document.body.classList.toggle("is-panning", isDisabled);
+}
+
 function loadState() {
   const saved = localStorage.getItem(STORAGE_KEY);
   if (saved) {
@@ -590,6 +594,7 @@ function render() {
         return;
       }
       event.stopPropagation();
+      setTextSelectionDisabled(true);
       selectedNodeId = node.id;
       updateForm();
       updateConnections();
@@ -989,6 +994,7 @@ mapViewport.addEventListener("mousedown", (event) => {
     return;
   }
   isDragging = true;
+  setTextSelectionDisabled(true);
   mapViewport.classList.add("is-dragging");
   dragStart = { x: event.clientX, y: event.clientY };
   dragOrigin = { ...viewState };
@@ -1082,6 +1088,7 @@ mapViewport.addEventListener("mouseup", () => {
   draggedNodeId = null;
   draggedSubtreeIds = new Set();
   dragStartPositions = new Map();
+  setTextSelectionDisabled(false);
   mapViewport.classList.remove("is-dragging");
 });
 
@@ -1097,6 +1104,7 @@ mapViewport.addEventListener("mouseleave", () => {
     draggedSubtreeIds = new Set();
     dragStartPositions = new Map();
   }
+  setTextSelectionDisabled(false);
 });
 
 function getWheelScale(event) {
