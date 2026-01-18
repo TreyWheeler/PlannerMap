@@ -13,6 +13,10 @@ body {
   margin: 0;
 }
 
+body.is-panning {
+  user-select: none;
+}
+
 .app {
   display: flex;
   flex-direction: column;
