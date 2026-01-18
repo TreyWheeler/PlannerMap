@@ -24,7 +24,6 @@ const linkRequiredSelect = document.getElementById("link-required");
 const confirmLinkButton = document.getElementById("confirm-link");
 const cancelLinkButton = document.getElementById("cancel-link");
 const sidebarToggleButton = document.getElementById("sidebar-toggle");
-const sidebarOpenButton = document.getElementById("sidebar-open");
 const appContainer = document.querySelector(".app");
 
 let state = loadState();
@@ -1164,9 +1163,6 @@ cancelLinkButton.addEventListener("click", hideLinkModal);
 fitViewButton.addEventListener("click", fitToScreen);
 sidebarToggleButton.addEventListener("click", () => {
   setSidebarCollapsed(true);
-});
-sidebarOpenButton.addEventListener("click", () => {
-  setSidebarCollapsed(false);
 });
 
 mapViewport.addEventListener("click", () => {
