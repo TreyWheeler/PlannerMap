@@ -18,7 +18,6 @@ const addChildButton = document.getElementById("add-child");
 const deleteNodeButton = document.getElementById("delete-node");
 const linkNodeButton = document.getElementById("link-node");
 const fitViewButton = document.getElementById("fit-view");
-const resetViewButton = document.getElementById("reset-view");
 const linkModal = document.getElementById("link-modal");
 const linkDependentSelect = document.getElementById("link-dependent");
 const linkRequiredSelect = document.getElementById("link-required");
@@ -48,6 +47,8 @@ let layoutCache = {
   positions: new Map(),
   animationFrameId: null,
 };
+const MIN_ZOOM = 0.3;
+const MAX_ZOOM = 2;
 
 const STATUS_OPTIONS = [
   "Considering",
@@ -928,42 +929,53 @@ function screenToMapPoint(clientX, clientY) {
 }
 
 function fitToScreen() {
-  const nodes = Array.from(mapContent.children);
+  const nodes = Array.from(mapContent.querySelectorAll(".node"));
   if (nodes.length === 0) {
     return;
   }
-  const bounds = nodes.reduce(
-    (acc, node) => {
-      const rect = node.getBoundingClientRect();
-      acc.minX = Math.min(acc.minX, rect.left);
-      acc.minY = Math.min(acc.minY, rect.top);
-      acc.maxX = Math.max(acc.maxX, rect.right);
-      acc.maxY = Math.max(acc.maxY, rect.bottom);
-      return acc;
-    },
-    {
-      minX: Infinity,
-      minY: Infinity,
-      maxX: -Infinity,
-      maxY: -Infinity,
+  const bounds = {
+    minX: Infinity,
+    minY: Infinity,
+    maxX: -Infinity,
+    maxY: -Infinity,
+  };
+
+  nodes.forEach((node) => {
+    const nodeId = node.dataset.nodeId;
+    const position =
+      layoutCache.positions.get(nodeId) ||
+      state.nodes.find((item) => item.id === nodeId)?.position;
+    if (!position) {
+      return;
     }
-  );
+    const width = node.offsetWidth || node.clientWidth || 0;
+    const height = node.offsetHeight || node.clientHeight || 0;
+    bounds.minX = Math.min(bounds.minX, position.x - width / 2);
+    bounds.minY = Math.min(bounds.minY, position.y - height / 2);
+    bounds.maxX = Math.max(bounds.maxX, position.x + width / 2);
+    bounds.maxY = Math.max(bounds.maxY, position.y + height / 2);
+  });
+
+  if (!Number.isFinite(bounds.minX)) {
+    return;
+  }
 
   const viewportRect = mapViewport.getBoundingClientRect();
   const width = bounds.maxX - bounds.minX;
   const height = bounds.maxY - bounds.minY;
-  const scaleX = viewportRect.width / (width + 200);
-  const scaleY = viewportRect.height / (height + 200);
-  const scale = Math.min(scaleX, scaleY, 1);
+  const padding = 120;
+  const safeWidth = Math.max(width, 1);
+  const safeHeight = Math.max(height, 1);
+  const scaleX = viewportRect.width / (safeWidth + padding * 2);
+  const scaleY = viewportRect.height / (safeHeight + padding * 2);
+  const scale = Math.min(Math.max(Math.min(scaleX, scaleY), MIN_ZOOM), MAX_ZOOM);
+
+  const centerX = bounds.minX + width / 2;
+  const centerY = bounds.minY + height / 2;
 
   viewState.scale = scale;
-  viewState.x = viewportRect.width / 2 - (bounds.minX + width / 2);
-  viewState.y = viewportRect.height / 2 - (bounds.minY + height / 2);
-  applyTransform();
-}
-
-function resetView() {
-  viewState = { x: 0, y: 0, scale: 1 };
+  viewState.x = viewportRect.width / 2 - centerX * scale;
+  viewState.y = viewportRect.height / 2 - centerY * scale;
   applyTransform();
 }
 
@@ -1101,7 +1113,10 @@ mapViewport.addEventListener(
   (event) => {
     event.preventDefault();
     const scaleFactor = getWheelScale(event);
-    const nextScale = Math.min(Math.max(viewState.scale * scaleFactor, 0.3), 2);
+    const nextScale = Math.min(
+      Math.max(viewState.scale * scaleFactor, MIN_ZOOM),
+      MAX_ZOOM
+    );
     if (nextScale === viewState.scale) {
       return;
     }
@@ -1147,7 +1162,6 @@ linkNodeButton.addEventListener("click", showLinkModal);
 confirmLinkButton.addEventListener("click", createLink);
 cancelLinkButton.addEventListener("click", hideLinkModal);
 fitViewButton.addEventListener("click", fitToScreen);
-resetViewButton.addEventListener("click", resetView);
 sidebarToggleButton.addEventListener("click", () => {
   setSidebarCollapsed(true);
 });
